@@ -11,6 +11,8 @@ import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.utils.Array;
 import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+
 
 import org.w3c.dom.Text;
 
@@ -50,6 +52,16 @@ public class bloombastic implements ApplicationListener {
     private final float[] lanes = {20f, 110f, 200f};
     private enum GameState { MENU, PLAYING, PAUSED}
     private GameState gameState = GameState.MENU;
+    private int score = 0;
+    private BitmapFont font;
+
+    private float baseScrollSpeed = 2f; // Starting speed
+    private float currentScrollSpeed; // Current obstacle speed
+    private float maxSpeed = 6f; // Maximum speed cap
+    private int speedIncreaseInterval = 100; // Score interval for speed increases
+    private int obstacleIncreaseInterval = 200; // Score interval for adding obstacles
+    private int baseCrackCount = 2; // Starting number of cracks
+    private int currentCrackCount; // Current number of cracks//display for score text
 
     Array<Sprite> crackSprites;
     Array<Sprite> trafficIslandSprites;
@@ -60,6 +72,10 @@ public class bloombastic implements ApplicationListener {
 
     @Override
     public void create() {
+        currentScrollSpeed = baseScrollSpeed;//shu
+        currentCrackCount = baseCrackCount;//shu
+        font = new BitmapFont();//shu
+        font.getData().setScale(1.5f);//shu
         player = new Texture("player.png");
         road = new Texture("road.png");
         crack1 = new Texture("crack1.png");
@@ -146,6 +162,9 @@ public class bloombastic implements ApplicationListener {
         draw();
 
     }
+    private boolean checkCollision(Sprite player, Sprite people) {
+        return player.getBoundingRectangle().overlaps(people.getBoundingRectangle());
+    }
 
     private void movementAndButtons() {
         touchPos.set(Gdx.input.getX(), Gdx.input.getY());
@@ -219,6 +238,7 @@ public class bloombastic implements ApplicationListener {
     }
 
     private void restartGame() {
+        score = 0;
         gameState = GameState.MENU;
         isPaused = false;
 
@@ -300,41 +320,55 @@ public class bloombastic implements ApplicationListener {
     private void logic() {
         if (!gameStarted || isPaused) return;
 
-        scrollY -= 2f;
+        // Increase speed based on score
+        currentScrollSpeed = baseScrollSpeed + (score / 100f);
+        if (currentScrollSpeed > maxSpeed) {
+            currentScrollSpeed = maxSpeed;
+        }
+
+        scrollY -= currentScrollSpeed;
         if (scrollY <= -viewport.getWorldHeight()) {
             scrollY = 0;
         }
 
         for (Sprite crackSprite : crackSprites) {
-            crackSprite.translateY(-2f);
+            crackSprite.translateY(-currentScrollSpeed);
 
             if (crackSprite.getY() + crackSprite.getHeight() < 0) {
                 float x = lanes[MathUtils.random(0, lanes.length - 1)];
-                crackSprite.setY(viewport.getWorldHeight());
-                crackSprite.setX(x);
+                crackSprite.setPosition(x, viewport.getWorldHeight());
             }
         }
 
         for (Sprite trafficIslandSprite : trafficIslandSprites) {
-            trafficIslandSprite.translateY(-2f);
+            trafficIslandSprite.translateY(-currentScrollSpeed);
 
             if (trafficIslandSprite.getY() + trafficIslandSprite.getHeight() < 0) {
                 float x = lanes[MathUtils.random(0, lanes.length - 1)];
-                trafficIslandSprite.setY(viewport.getWorldHeight());
-                trafficIslandSprite.setX(x);
+                trafficIslandSprite.setPosition(x, viewport.getWorldHeight());
             }
         }
 
         for (Sprite peopleSprite : peopleSprites) {
-            peopleSprite.translateY(-2f);
+            peopleSprite.translateY(-currentScrollSpeed);
 
             if (peopleSprite.getY() + peopleSprite.getHeight() < 0) {
                 float x = lanes[MathUtils.random(0, lanes.length - 1)];
-                peopleSprite.setY(viewport.getWorldHeight());
-                peopleSprite.setX(x);
+                peopleSprite.setPosition(x, viewport.getWorldHeight());
+            }
+        }
+
+        // Check for collision and increase score
+        for (int i = peopleSprites.size - 1; i >= 0; i--) {
+            Sprite person = peopleSprites.get(i);
+            if (checkCollision(playerSprite, person)) {
+                score += 10; // Increase score for each person collected
+                float x = lanes[MathUtils.random(0, lanes.length - 1)];
+                person.setPosition(x, viewport.getWorldHeight());
             }
         }
     }
+
 
     private void draw() {
         batch.setProjectionMatrix(viewport.getCamera().combined);
@@ -378,6 +412,10 @@ public class bloombastic implements ApplicationListener {
             exitButtonSprite.draw(batch);
         }
 
+        if (gameStarted) {
+            font.draw(batch, "Score: " + score, 10, viewport.getWorldHeight() - 20);
+        }
+
         batch.end();
 
     }
@@ -394,6 +432,7 @@ public class bloombastic implements ApplicationListener {
 
     @Override
     public void dispose() {
+        font.dispose();
         road.dispose();
         player.dispose();
         crack1.dispose();
